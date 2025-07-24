@@ -1,8 +1,9 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.nio.charset.StandardCharsets;
 
-create public class HttpRequest extends HttpMessage {
+public class HttpRequest extends HttpMessage {
     private static final String ZID = "z5414008";
 
     String method;
@@ -12,9 +13,8 @@ create public class HttpRequest extends HttpMessage {
     int port;
     String path;
 
-    public HttpRequest(InputStream request) {
-        BufferedReader bufferedRequest = new BufferedReader(new InputStreamReader(request));
-        Map<String, String> parsedRequest = new HashMap<>();
+    public HttpRequest(InputStream request) throws IOException, MalformedURLException {
+        BufferedReader bufferedRequest = new BufferedReader(new InputStreamReader(new BufferedInputStream(request)));
         String line = bufferedRequest.readLine();
 
         parseStartLine(line);
@@ -24,14 +24,14 @@ create public class HttpRequest extends HttpMessage {
         }
     }
 
-    private static void parseTarget() {
+    private void parseTarget() throws MalformedURLException {
         URL targetUrl = new URL(target);
         this.hostname = targetUrl.getHost();
         this.port = targetUrl.getPort() == -1 ? targetUrl.getDefaultPort() : targetUrl.getPort();
         this.path = targetUrl.getFile() == null ? "/" : targetUrl.getFile();
     }
 
-    private static void parseStartLine(String startLine) {
+    private void parseStartLine(String startLine) throws MalformedURLException {
         String[] startLineData = startLine.trim().split("\\s+");
         this.method = startLineData[0];
         this.target = startLineData[1];
@@ -41,16 +41,16 @@ create public class HttpRequest extends HttpMessage {
     }
 
     @Override
-    public void readMessageBody(InputStream inputStream) {
-        int length = parseInt(headers.get("content-length"));
+    public void readMessageBody(InputStream inputStream) throws IOException {
+        int length = Integer.parseInt(headers.get("content-length"));
         this.messageBody = inputStream.readNBytes(length);
     }
 
-    public BufferedWriter getTransformedRequest() {
-        String headersString = method + " " + path + " " + protocolVersion + "\r\n"
-        for (Map.Entry<String, String> header : headers) {
+    public byte[] getTransformedRequest() {
+        String headersString = method + " " + path + " " + protocolVersion + "\r\n";
+        for (Map.Entry<String, String> header : headers.entrySet()) {
             // Close connection and remove proxy-connection header
-            if (header.getKey().isEqual("connection") || header.getKey().isEqual("proxy-connection")) {
+            if (header.getKey().equals("connection") || header.getKey().equals("proxy-connection")) {
                 continue;
             }
 
@@ -59,7 +59,13 @@ create public class HttpRequest extends HttpMessage {
 
         headersString += "connection: close\r\n" + "via: 1.1 " + ZID + "\r\n";
 
+        // If no message body, return start line + headers
         byte[] headersStringBytes = headersString.getBytes(StandardCharsets.US_ASCII);
+        if (messageBody == null) {
+            return headersStringBytes;
+        }
+
+        // If message body, make a new byte array and return all data
         int size = messageBody.length + headersStringBytes.length;
         byte[] transformedRequest = new byte[size];
         

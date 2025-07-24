@@ -6,7 +6,7 @@ public abstract class HttpMessage {
     Map<String, String> headers = new HashMap<>();
     byte[] messageBody;
 
-    public void parseHeaders(BufferedReader bufferedHeaders) {
+    public void parseHeaders(BufferedReader bufferedHeaders) throws IOException{
         String line = bufferedHeaders.readLine();
         int colonIdx;
         while (line != null && !line.isEmpty()) {
@@ -16,5 +16,5 @@ public abstract class HttpMessage {
         }
     }
 
-    abstract public void readMessageBody(InputStream inputStream);
+    abstract public void readMessageBody(InputStream inputStream) throws IOException;
 }

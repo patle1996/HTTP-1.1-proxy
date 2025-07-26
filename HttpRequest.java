@@ -6,12 +6,10 @@ import java.nio.charset.StandardCharsets;
 public class HttpRequest extends HttpMessage {
     private static final String ZID = "z5414008";
 
-    String method;
-    String target;
-    String protocolVersion;
-    String hostname;
-    int port;
-    String path;
+    private String target;
+    private String hostname;
+    private int port;
+    private String path;
 
     public HttpRequest(InputStream request) throws IOException, MalformedURLException {
         BufferedReader bufferedRequest = new BufferedReader(new InputStreamReader(new BufferedInputStream(request)));
@@ -20,8 +18,16 @@ public class HttpRequest extends HttpMessage {
         parseStartLine(line);
         super.parseHeaders(bufferedRequest);
         if (headers.containsKey("content-length")) {
-            readMessageBody(request);
+            readMessageBodyByLength(request);
         }
+    }
+
+    public String getHostname() {
+        return hostname;
+    }
+
+    public int getPort() {
+        return port;
     }
 
     private void parseTarget() throws MalformedURLException {
@@ -33,21 +39,16 @@ public class HttpRequest extends HttpMessage {
 
     private void parseStartLine(String startLine) throws MalformedURLException {
         String[] startLineData = startLine.trim().split("\\s+");
-        this.method = startLineData[0];
+        setMethod(startLineData[0]);
         this.target = startLineData[1];
-        this.protocolVersion = startLineData[2];
+        setProtocolVersion(startLineData[2]);
 
         parseTarget();
     }
 
-    @Override
-    public void readMessageBody(InputStream inputStream) throws IOException {
-        int length = Integer.parseInt(headers.get("content-length"));
-        this.messageBody = inputStream.readNBytes(length);
-    }
-
+    // Transforms the request to be sent to the origin server 
     public byte[] getTransformedRequest() {
-        String headersString = method + " " + path + " " + protocolVersion + "\r\n";
+        String headersString = getMethod() + " " + path + " " + getProtocolVersion() + "\r\n";
         for (Map.Entry<String, String> header : headers.entrySet()) {
             // Close connection and remove proxy-connection header
             if (header.getKey().equals("connection") || header.getKey().equals("proxy-connection")) {
@@ -61,16 +62,16 @@ public class HttpRequest extends HttpMessage {
 
         // If no message body, return start line + headers
         byte[] headersStringBytes = headersString.getBytes(StandardCharsets.US_ASCII);
-        if (messageBody == null) {
+        if (getMessageBody() == null) {
             return headersStringBytes;
         }
 
         // If message body, make a new byte array and return all data
-        int size = messageBody.length + headersStringBytes.length;
+        int size = getMessageBodySize() + headersStringBytes.length;
         byte[] transformedRequest = new byte[size];
         
         System.arraycopy(headersStringBytes, 0, transformedRequest, 0, headersStringBytes.length);
-        System.arraycopy(messageBody, 0, transformedRequest, headersStringBytes.length, messageBody.length);
+        System.arraycopy(getMessageBody(), 0, transformedRequest, headersStringBytes.length, messageBody.length);
 
         return transformedRequest;
     }

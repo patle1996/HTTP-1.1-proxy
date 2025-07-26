@@ -18,14 +18,22 @@ public class Proxy {
 
         while (true) {
             Socket clientSocket = serverSocket.accept();
-
             InputStream clientInput = clientSocket.getInputStream();
             OutputStream clientOutput = clientSocket.getOutputStream();
             
             HttpRequest request = new HttpRequest(clientInput);
+
+            Socket originSocket = new Socket(request.getHostname(), request.getPort());
+            InputStream originInput = originSocket.getInputStream();
+            OutputStream originOutput = originSocket.getOutputStream();
+
             byte[] transformedRequest = request.getTransformedRequest();
-            clientOutput.write(transformedRequest);
-            clientOutput.flush();
+            originOutput.write(transformedRequest);
+            originOutput.flush();
+
+            HttpResponse response = new HttpResponse(originInput);
+            response.setMethod(request.getMethod());
+            originSocket.close();
         }
     }
 }

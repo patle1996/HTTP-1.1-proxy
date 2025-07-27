@@ -11,14 +11,21 @@ public class HttpRequest extends HttpMessage {
     private int port;
     private String path;
 
-    public HttpRequest(InputStream request) throws IOException, MalformedURLException {
-        BufferedReader bufferedRequest = new BufferedReader(new InputStreamReader(new BufferedInputStream(request)));
+    public HttpRequest(InputStream request) {
+        super(request);
+    }
+
+    @Override
+    public void parseMessage() throws IOException {
+        BufferedReader bufferedRequest = new BufferedReader(new InputStreamReader(new BufferedInputStream(getMessageInputStream())));
         String line = bufferedRequest.readLine();
 
         parseStartLine(line);
-        super.parseHeaders(bufferedRequest);
-        if (headers.containsKey("content-length")) {
-            readMessageBodyByLength(request);
+
+        parseHeaders(bufferedRequest);
+
+        if (getHeaders().containsKey("content-length")) {
+            readMessageBodyByLength(getMessageInputStream());
         }
     }
 
@@ -37,7 +44,8 @@ public class HttpRequest extends HttpMessage {
         this.path = targetUrl.getFile() == null ? "/" : targetUrl.getFile();
     }
 
-    private void parseStartLine(String startLine) throws MalformedURLException {
+    @Override
+    public void parseStartLine(String startLine) throws MalformedURLException {
         String[] startLineData = startLine.trim().split("\\s+");
         setMethod(startLineData[0]);
         this.target = startLineData[1];
@@ -49,16 +57,16 @@ public class HttpRequest extends HttpMessage {
     // Transforms the request to be sent to the origin server 
     public byte[] getTransformedRequest() {
         String headersString = getMethod() + " " + path + " " + getProtocolVersion() + "\r\n";
-        for (Map.Entry<String, String> header : headers.entrySet()) {
+        for (Map.Entry<String, String> header : getHeaders().entrySet()) {
             // Close connection and remove proxy-connection header
             if (header.getKey().equals("connection") || header.getKey().equals("proxy-connection")) {
                 continue;
             }
 
-            headersString += header.getKey() + ":" + header.getValue() + "/r/n";
+            headersString += header.getKey() + ":" + header.getValue() + "\r\n";
         }
 
-        headersString += "connection: close\r\n" + "via: 1.1 " + ZID + "\r\n";
+        headersString += "connection: close\r\n" + "via: 1.1 " + ZID + "\r\n\r\n";
 
         // If no message body, return start line + headers
         byte[] headersStringBytes = headersString.getBytes(StandardCharsets.US_ASCII);
@@ -66,12 +74,12 @@ public class HttpRequest extends HttpMessage {
             return headersStringBytes;
         }
 
-        // If message body, make a new byte array and return all data
+        // If message body exists, make a new byte array and return all data
         int size = getMessageBodySize() + headersStringBytes.length;
         byte[] transformedRequest = new byte[size];
         
         System.arraycopy(headersStringBytes, 0, transformedRequest, 0, headersStringBytes.length);
-        System.arraycopy(getMessageBody(), 0, transformedRequest, headersStringBytes.length, messageBody.length);
+        System.arraycopy(getMessageBody(), 0, transformedRequest, headersStringBytes.length, getMessageBody().length);
 
         return transformedRequest;
     }

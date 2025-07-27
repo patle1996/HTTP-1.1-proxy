@@ -22,6 +22,7 @@ public class Proxy {
             OutputStream clientOutput = clientSocket.getOutputStream();
             
             HttpRequest request = new HttpRequest(clientInput);
+            request.parseMessage();
 
             Socket originSocket = new Socket(request.getHostname(), request.getPort());
             InputStream originInput = originSocket.getInputStream();
@@ -33,6 +34,12 @@ public class Proxy {
 
             HttpResponse response = new HttpResponse(originInput);
             response.setMethod(request.getMethod());
+            response.parseMessage();
+
+            byte[] transformedResponse = response.getTransformedResponse();
+            clientOutput.write(transformedResponse);
+            clientOutput.flush();
+
             originSocket.close();
         }
     }

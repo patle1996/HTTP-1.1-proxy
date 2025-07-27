@@ -3,10 +3,17 @@ import java.net.*;
 import java.util.*;
 
 public abstract class HttpMessage {
+    private InputStream messageInputStream;
     private String method;
     private String protocolVersion;
     private Map<String, String> headers = new HashMap<>();
     private byte[] messageBody;
+
+    public HttpMessage(InputStream message) {
+        this.messageInputStream = message;
+    }
+
+    public abstract void parseMessage() throws IOException;
 
     public void parseHeaders(BufferedReader bufferedHeaders) throws IOException{
         String line = bufferedHeaders.readLine();
@@ -18,10 +25,10 @@ public abstract class HttpMessage {
         }
     }
 
-    public abstract void parseStartLine(String startLine);
+    public abstract void parseStartLine(String startLine) throws MalformedURLException;
 
     public void readMessageBodyByLength(InputStream inputStream) throws IOException {
-        int length = Integer.parseInt(getHeaders().get("content-length"));
+        int length = Integer.parseInt(getHeaders().get("content-length").trim());
         this.messageBody = inputStream.readNBytes(length);
     }
 
@@ -53,7 +60,11 @@ public abstract class HttpMessage {
         return messageBody.length;
     }
 
-    public void setMessageBody(InputStream messageBody) {
+    public void setMessageBody(byte[] messageBody) {
         this.messageBody = messageBody;
+    }
+
+    public InputStream getMessageInputStream() {
+        return messageInputStream;
     }
 }

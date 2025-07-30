@@ -19,8 +19,10 @@ public class HttpRequest extends HttpMessage {
     public void parseMessage() throws IOException {
         BufferedReader bufferedRequest = new BufferedReader(new InputStreamReader(new BufferedInputStream(getMessageInputStream())));
         String line = bufferedRequest.readLine();
+        System.out.println(line);
+        setStartLine(line);
 
-        parseStartLine(line);
+        parseStartLine();
 
         parseHeaders(bufferedRequest);
 
@@ -45,7 +47,8 @@ public class HttpRequest extends HttpMessage {
     }
 
     @Override
-    public void parseStartLine(String startLine) throws MalformedURLException {
+    public void parseStartLine() throws MalformedURLException {
+        String startLine = getStartLine();
         String[] startLineData = startLine.trim().split("\\s+");
         setMethod(startLineData[0]);
         this.target = startLineData[1];

@@ -1,6 +1,8 @@
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class Proxy {
     private static int port;
@@ -18,11 +20,13 @@ public class Proxy {
 
         while (true) {
             Socket clientSocket = serverSocket.accept();
+            String host = clientSocket.getLocalAddress().getHostAddress();
             InputStream clientInput = clientSocket.getInputStream();
             OutputStream clientOutput = clientSocket.getOutputStream();
             
             HttpRequest request = new HttpRequest(clientInput);
             request.parseMessage();
+            String requestStartLine = request.getStartLine();
 
             Socket originSocket = new Socket(request.getHostname(), request.getPort());
             InputStream originInput = originSocket.getInputStream();
@@ -35,12 +39,23 @@ public class Proxy {
             HttpResponse response = new HttpResponse(originInput);
             response.setMethod(request.getMethod());
             response.parseMessage();
+            Integer statusCode = response.getStatusCode();
+            int messageBodySize = response.getMessageBodySize();
+            originSocket.close();
 
             byte[] transformedResponse = response.getTransformedResponse();
             clientOutput.write(transformedResponse);
             clientOutput.flush();
+            clientSocket.close();
 
-            originSocket.close();
+            ZonedDateTime date = ZonedDateTime.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z", Locale.ENGLISH);
+            String formattedDate = "[" + date.format(formatter) + " ]";
+
+            String cacheResult = "-";
+
+            // Logging
+            System.out.println(host + " " + port + " " + cacheResult + " " + formattedDate + " \"" + requestStartLine + "\" " + statusCode + " " + messageBodySize);
         }
     }
 }

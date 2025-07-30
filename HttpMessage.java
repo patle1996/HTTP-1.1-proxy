@@ -4,6 +4,7 @@ import java.util.*;
 
 public abstract class HttpMessage {
     private InputStream messageInputStream;
+    private String startLine;
     private String method;
     private String protocolVersion;
     private Map<String, String> headers = new HashMap<>();
@@ -25,11 +26,19 @@ public abstract class HttpMessage {
         }
     }
 
-    public abstract void parseStartLine(String startLine) throws MalformedURLException;
+    public abstract void parseStartLine() throws MalformedURLException;
 
     public void readMessageBodyByLength(InputStream inputStream) throws IOException {
         int length = Integer.parseInt(getHeaders().get("content-length").trim());
         this.messageBody = inputStream.readNBytes(length);
+    }
+
+    public void setStartLine(String startLine) {
+        this.startLine = startLine;
+    }
+
+    public String getStartLine() {
+        return startLine;
     }
 
     public void setMethod(String method) {

@@ -1,36 +1,87 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.nio.charset.StandardCharsets;
 
 public abstract class HttpMessage {
-    private InputStream messageInputStream;
+    private BufferedInputStream bufferedMessage;
     private String startLine;
     private String method;
     private String protocolVersion;
     private Map<String, String> headers = new HashMap<>();
     private byte[] messageBody;
+    private String connectionType;
 
     public HttpMessage(InputStream message) {
-        this.messageInputStream = message;
+        this.bufferedMessage = new BufferedInputStream(message);
     }
 
     public abstract void parseMessage() throws IOException;
 
-    public void parseHeaders(BufferedReader bufferedHeaders) throws IOException{
-        String line = bufferedHeaders.readLine();
-        int colonIdx;
-        while (line != null && !line.isEmpty()) {
-            colonIdx = line.indexOf(':');
-            headers.put(line.substring(0, colonIdx).trim().toLowerCase(), line.substring(colonIdx + 1));
-            line = bufferedHeaders.readLine();
+
+    public String readLine() throws IOException {
+        ByteArrayOutputStream lineBuffer = new ByteArrayOutputStream();
+        BufferedInputStream bufferedMessage = getBufferedMessage();
+        int currByte = bufferedMessage.read();
+        boolean seenCr = false;
+
+        while (currByte != -1) {
+            if (seenCr) {
+                if (currByte == '\n') {
+                    break;
+                }
+                lineBuffer.write('\r');
+                seenCr = false;
+            }
+
+            if (currByte == '\r') {
+                seenCr = true;
+            } else {
+                lineBuffer.write(currByte);
+            }
+            currByte = bufferedMessage.read();
         }
+        return new String(lineBuffer.toByteArray(), StandardCharsets.US_ASCII);
     }
 
-    public abstract void parseStartLine() throws MalformedURLException;
+    public void parseHeaders() throws IOException{
+        String line = readLine();
+        int colonIdx;
+        // System.out.println("print start");
+        while (line != null && !line.isEmpty()) {
+            // System.out.println(line);
+            colonIdx = line.indexOf(':');
 
-    public void readMessageBodyByLength(InputStream inputStream) throws IOException {
-        int length = Integer.parseInt(getHeaders().get("content-length").trim());
-        this.messageBody = inputStream.readNBytes(length);
+            String key = line.substring(0, colonIdx).trim().toLowerCase();
+            String value = line.substring(colonIdx + 1);
+            headers.put(key, value);
+            
+            line = readLine();
+        }
+                // System.out.println("print end");
+
+    }
+
+    public abstract void parseStartLine() throws MalformedURLException, IOException;
+
+    public void readMessageBodyByLength() throws IOException {
+        BufferedInputStream bufferedMessage = getBufferedMessage();
+        Integer length = Integer.parseInt(getHeaders().get("content-length").trim());
+        byte[] messageBody = new byte[length];
+        int totalRead = 0;
+
+        while (totalRead < length) {
+            int bytesRead = bufferedMessage.read(messageBody, totalRead, length - totalRead);
+
+            if (bytesRead == -1) {
+                if (totalRead < length) {
+                    throw new IOException("Expected " + length + " bytes, but only read " + totalRead);
+                }
+                break;
+            }
+            totalRead += bytesRead;
+        }
+        this.messageBody = messageBody;
     }
 
     public void setStartLine(String startLine) {
@@ -73,7 +124,22 @@ public abstract class HttpMessage {
         this.messageBody = messageBody;
     }
 
-    public InputStream getMessageInputStream() {
-        return messageInputStream;
+    public BufferedInputStream getBufferedMessage() {
+        return bufferedMessage;
+    }
+
+    public void setConnectionType(String connectionType) {
+        this.connectionType = connectionType;
+    }
+
+    public String getConnectionType() {
+        return connectionType;
+    }
+
+    public boolean isPersistent() {
+        if (getConnectionType() == null) {
+            return true;
+        }
+        return !connectionType.trim().equals("close");
     }
 }

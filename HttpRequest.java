@@ -17,17 +17,15 @@ public class HttpRequest extends HttpMessage {
 
     @Override
     public void parseMessage() throws IOException {
-        BufferedReader bufferedRequest = new BufferedReader(new InputStreamReader(new BufferedInputStream(getMessageInputStream())));
-        String line = bufferedRequest.readLine();
-        System.out.println(line);
-        setStartLine(line);
-
         parseStartLine();
 
-        parseHeaders(bufferedRequest);
+        parseHeaders();
+
+        String connectionType = getHeaders().get("connection");
+        setConnectionType(connectionType);
 
         if (getHeaders().containsKey("content-length")) {
-            readMessageBodyByLength(getMessageInputStream());
+            readMessageBodyByLength();
         }
     }
 
@@ -43,13 +41,15 @@ public class HttpRequest extends HttpMessage {
         URL targetUrl = new URL(target);
         this.hostname = targetUrl.getHost();
         this.port = targetUrl.getPort() == -1 ? targetUrl.getDefaultPort() : targetUrl.getPort();
-        this.path = targetUrl.getFile() == null ? "/" : targetUrl.getFile();
+        this.path = targetUrl.getFile().isEmpty() ? "/" : targetUrl.getFile();
     }
 
     @Override
-    public void parseStartLine() throws MalformedURLException {
-        String startLine = getStartLine();
-        String[] startLineData = startLine.trim().split("\\s+");
+    public void parseStartLine() throws MalformedURLException, IOException {
+        String line = readLine();
+        setStartLine(line);
+
+        String[] startLineData = line.trim().split("\\s+");
         setMethod(startLineData[0]);
         this.target = startLineData[1];
         setProtocolVersion(startLineData[2]);

@@ -64,6 +64,10 @@ public class HttpRequest extends HttpMessage {
     @Override
     public void parseStartLine() throws MalformedURLException, IOException {
         String line = readLine();
+        if (line == null || line.isEmpty()) {
+            throw new IOException("Empty or null start line");
+        }
+
         setStartLine(line);
 
         String[] startLineData = line.trim().split("\\s+");

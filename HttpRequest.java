@@ -20,10 +20,8 @@ public class HttpRequest extends HttpMessage {
         parseStartLine();
 
         parseHeaders();
-
         String connectionType = getHeaders().get("connection");
         setConnectionType(connectionType);
-
         if (getHeaders().containsKey("content-length")) {
             readMessageBodyByLength();
         }
@@ -37,11 +35,28 @@ public class HttpRequest extends HttpMessage {
         return port;
     }
 
-    private void parseTarget() throws MalformedURLException {
-        URL targetUrl = new URL(target);
+    private void parseUrl(URL targetUrl) {
         this.hostname = targetUrl.getHost();
         this.port = targetUrl.getPort() == -1 ? targetUrl.getDefaultPort() : targetUrl.getPort();
         this.path = targetUrl.getFile().isEmpty() ? "/" : targetUrl.getFile();
+    }
+
+    private void parseTarget() throws MalformedURLException {
+        if (target.startsWith("http://") || target.startsWith("https://")) {
+            parseUrl(new URL(target));
+            return;
+        }
+
+        String host = getHeaders().get("host");
+        if (host != null) {
+            host = host.trim();
+            String fullUrl = "http://" + host + target;
+            parseUrl(new URL(fullUrl));
+        } else {
+            this.hostname = null;
+            this.port = 80;
+            this.path = target.isEmpty() ? "/" : target;
+        }
     }
 
     @Override
@@ -53,7 +68,15 @@ public class HttpRequest extends HttpMessage {
         setMethod(startLineData[0]);
         this.target = startLineData[1];
         setProtocolVersion(startLineData[2]);
-
+        if (startLineData[0].equals("CONNECT")) {
+            int colonIdx = target.indexOf(':');
+            if (colonIdx == - 1) {
+                // Malformed CONNECT request
+            }
+            this.hostname = target.substring(0, colonIdx);
+            this.port = Integer.parseInt(target.substring(colonIdx + 1));
+            return;
+        }
         parseTarget();
     }
 
@@ -70,7 +93,6 @@ public class HttpRequest extends HttpMessage {
         }
 
         headersString += "connection: close\r\n" + "via: 1.1 " + ZID + "\r\n\r\n";
-
         // If no message body, return start line + headers
         byte[] headersStringBytes = headersString.getBytes(StandardCharsets.US_ASCII);
         if (getMessageBody() == null) {

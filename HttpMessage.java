@@ -25,6 +25,7 @@ public abstract class HttpMessage {
         int currByte = bufferedMessage.read();
         boolean seenCr = false;
 
+        // Continue to read bytes until CRLF is reached
         while (currByte != -1) {
             if (seenCr) {
                 if (currByte == '\n') {
@@ -47,9 +48,9 @@ public abstract class HttpMessage {
     public void parseHeaders() throws IOException{
         String line = readLine();
         int colonIdx;
-        // System.out.println("print start");
+
+        // Continue to read lines until an empty line is reached signalling the end of the headers
         while (line != null && !line.isEmpty()) {
-            // System.out.println(line);
             colonIdx = line.indexOf(':');
 
             String key = line.substring(0, colonIdx).trim().toLowerCase();
@@ -58,8 +59,6 @@ public abstract class HttpMessage {
             
             line = readLine();
         }
-                // System.out.println("print end");
-
     }
 
     public abstract void parseStartLine() throws MalformedURLException, IOException;
@@ -70,6 +69,7 @@ public abstract class HttpMessage {
         byte[] messageBody = new byte[length];
         int totalRead = 0;
 
+        // Continue to read bytes into messageBody until required length is reached
         while (totalRead < length) {
             int bytesRead = bufferedMessage.read(messageBody, totalRead, length - totalRead);
 

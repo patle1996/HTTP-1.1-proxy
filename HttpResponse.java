@@ -20,6 +20,7 @@ public class HttpResponse extends HttpMessage {
 
         parseHeaders();
 
+        // Determine if message body is present
         if (!getMethod().equals("HEAD") && statusCode != 204 && statusCode != 304) {
             if (getHeaders().containsKey("transfer-encoding")) {
                 readMessageBodyByStream();

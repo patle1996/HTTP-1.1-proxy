@@ -17,8 +17,6 @@ public class HttpRequest extends HttpMessage {
 
     @Override
     public void parseMessage() throws IOException {
-        parseStartLine();
-
         parseHeaders();
         String connectionType = getHeaders().get("connection");
         setConnectionType(connectionType);
@@ -33,6 +31,10 @@ public class HttpRequest extends HttpMessage {
 
     public int getPort() {
         return port;
+    }
+
+    public String getTarget() {
+        return target;
     }
 
     private void parseUrl(URL targetUrl) {

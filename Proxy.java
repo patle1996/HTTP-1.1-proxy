@@ -25,12 +25,21 @@ public class Proxy {
         }
     }
 
+    private static String getTimestamp() {
+        ZonedDateTime date = ZonedDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z", Locale.ENGLISH);
+        String formattedDate = "[" + date.format(formatter) + "]";
+        return formattedDate;
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException {
         port = Integer.parseInt(args[0]);
         timeout = Integer.parseInt(args[1]);
-        max_object_size = Integer.parseInt(args[2]);
-        max_cache_size = Integer.parseInt(args[3]);
-        
+        maxObjectSize = Integer.parseInt(args[2]);
+        maxCacheSize = Integer.parseInt(args[3]);
+
+        Cache.initialize(maxObjectSize, maxCacheSize);
+
         ServerSocket serverSocket = new ServerSocket(port);
 
         while (true) {
@@ -40,10 +49,11 @@ public class Proxy {
             Socket originSocket = null;
             InputStream originInput = null;
             OutputStream originOutput = null;
+            String cacheResult = "-";
 
             // Open connection with client
             clientSocket = serverSocket.accept();
-            String host = clientSocket.getLocalAddress().getHostAddress();
+            String host = clientSocket.getLocalAddress().getHostAddress();            
 
             try {
                 clientSocket.setSoTimeout(timeout * 1000);
@@ -52,14 +62,31 @@ public class Proxy {
                 
                 // Receive request from client
                 HttpRequest request = new HttpRequest(clientInput);
-                request.parseMessage();
 
-                String method = request.getMethod();
+                request.parseStartLine();
                 String requestStartLine = request.getStartLine().trim();
 
-                ZonedDateTime date = ZonedDateTime.now();
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z", Locale.ENGLISH);
-                String formattedDate = "[" + date.format(formatter) + "]";
+                String method = request.getMethod();
+                if (method.equals("GET")) {
+                    Cache cache = Cache.getInstance();
+                    String targetUrl = request.getTarget();
+                    if (cache.isCached(targetUrl)) {
+                        CacheEntry cacheEntry = cache.getResponse(targetUrl);
+                        byte[] cachedResponse = cacheEntry.getMessage();
+                        clientOutput.write(cachedResponse);
+                        clientOutput.flush();
+
+                        cacheResult = "H";
+                        // Logging for cache hit
+                        System.out.println(host + " " + port + " " + cacheResult +
+                            " [" + getTimestamp() + "] \"" + requestStartLine +
+                            "\" 200 "+ cacheEntry.getSize());
+                        
+                        continue;
+                    }
+                }
+
+                request.parseMessage();
 
                 // Open connection with server
                 originSocket = new Socket(request.getHostname(), request.getPort());
@@ -69,6 +96,7 @@ public class Proxy {
 
                 if (method.equals("CONNECT")) {
                     clientOutput.write(("HTTP/1.1 200 Connection Established\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+                    clientOutput.flush();
 
                     final InputStream finalClientInput = clientInput;
                     final OutputStream finalOriginOutput = originOutput;
@@ -98,12 +126,9 @@ public class Proxy {
                     clientToServer.join();
                     
                     // Logging for CONNECT
-                    System.out.println(host + " " + port + " - " + formattedDate + " \"" + requestStartLine + "\" 200 0");
-                } else {                
-                    if (method.equals("GET")) {
-                        cacheresult = request.isCached();
-                    }
-
+                    System.out.println(host + " " + port +" - [" +getTimestamp() +
+                        "] \"" + requestStartLine + "\" 200 0");
+                } else {
                     String connection = request.getConnectionType();
 
                     // Transform request and send to server
@@ -122,16 +147,23 @@ public class Proxy {
 
                     // Transform response and send to client
                     byte[] transformedResponse = response.getTransformedResponse();
+
+                    int messageBodySize = response.getMessageBodySize();
+                    if (method.equals("GET")) {
+                        cacheResult = "M";
+                        Cache cache = Cache.getInstance();
+                        String targetUrl = request.getTarget();
+                        cache.storeResponse(transformedResponse, messageBodySize, targetUrl);
+                    }
                     clientOutput.write(transformedResponse);
                     clientOutput.flush();
 
-                    String cacheResult = "-";
-
                     Integer statusCode = response.getStatusCode();
-                    int messageBodySize = response.getMessageBodySize();
 
                     // Logging upon compeltion of HTTP transaction
-                    System.out.println(host + " " + port + " " + cacheResult + " " + formattedDate + " \"" + requestStartLine + "\" " + statusCode + " " + messageBodySize);
+                    System.out.println(host + " " + port + " " + cacheResult +
+                        " [" + getTimestamp() + "] \"" + requestStartLine + "\" " +
+                        statusCode + " " + messageBodySize);
 
                     // Close connection if not persistent
                     if (!request.isPersistent()) {

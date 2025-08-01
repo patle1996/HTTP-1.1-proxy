@@ -37,28 +37,11 @@ public class HttpRequest extends HttpMessage {
         return target;
     }
 
-    private void parseUrl(URL targetUrl) {
+    private void parseTarget() throws MalformedURLException {
+        URL targetUrl = new URL(target);
         this.hostname = targetUrl.getHost();
         this.port = targetUrl.getPort() == -1 ? targetUrl.getDefaultPort() : targetUrl.getPort();
         this.path = targetUrl.getFile().isEmpty() ? "/" : targetUrl.getFile();
-    }
-
-    private void parseTarget() throws MalformedURLException {
-        if (target.startsWith("http://") || target.startsWith("https://")) {
-            parseUrl(new URL(target));
-            return;
-        }
-
-        String host = getHeaders().get("host");
-        if (host != null) {
-            host = host.trim();
-            String fullUrl = "http://" + host + target;
-            parseUrl(new URL(fullUrl));
-        } else {
-            this.hostname = null;
-            this.port = 80;
-            this.path = target.isEmpty() ? "/" : target;
-        }
     }
 
     @Override
